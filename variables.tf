@@ -9,7 +9,7 @@ variable "webhook_url" {
 }
 
 variable "n8n_instance_type" {
-  description = "EC2 instance type for n8n (e.g., t2.micro, t3.micro)"
+  description = "EC2 instance type for n8n (e.g., t3a.micro for better price/performance)"
   type        = string
-  default     = "t2.micro"
+  default     = "t3a.micro"
 } 

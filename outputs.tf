@@ -16,16 +16,6 @@ output "n8n_security_group_id" {
   value       = aws_security_group.n8n_sg.id
 }
 
-output "route53_nameservers" {
-  description = "Nameservers for olivinha.site domain"
-  value       = aws_route53_zone.olivinha_site.name_servers
-}
-
-output "route53_zone_id" {
-  description = "Route53 hosted zone ID for olivinha.site"
-  value       = aws_route53_zone.olivinha_site.zone_id
-}
-
 output "n8n_url" {
   description = "URL for n8n instance"
   value       = "https://n8n.olivinha.site"

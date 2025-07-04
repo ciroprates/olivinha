@@ -44,17 +44,41 @@ resource "aws_instance" "n8n" {
   instance_type = var.n8n_instance_type
   key_name      = "n8n-key"
   vpc_security_group_ids = [aws_security_group.n8n_sg.id]
+  
+  # Configuração de CPU credits para t3
+  credit_specification {
+    cpu_credits = "unlimited"
+  }
+  
   tags = {
     Name = "n8n-server"
+    Environment = "production"
+    CostCenter = "n8n-automation"
   }
   user_data = <<-EOF
     #!/bin/bash
+    
+    # Configurar Swap (2GB)
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+    
+    # Configurar parâmetros do Swap
+    echo "vm.swappiness=10" | tee -a /etc/sysctl.conf
+    echo "vm.vfs_cache_pressure=50" | tee -a /etc/sysctl.conf
+    sysctl -p
+    
+    # Instalar dependências
     apt-get update -y
     apt-get install -y \
       ca-certificates \
       curl \
       gnupg \
       lsb-release
+    
+    # Instalar Docker
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     echo \
@@ -64,13 +88,32 @@ resource "aws_instance" "n8n" {
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl start docker
     systemctl enable docker
+    
+    # Configurar limites de memória do Docker
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json <<'DOCKERCONF'
+    {
+      "default-memory-swap": "1G",
+      "default-memory": "512m"
+    }
+    DOCKERCONF
+    systemctl restart docker
+    
+    # Criar volume e iniciar n8n
     docker volume create n8n_data
-    docker run -d --name n8n -p 127.0.0.1:5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n
-    # Install Caddy
+    docker run -d --name n8n \
+      -p 127.0.0.1:5678:5678 \
+      -v n8n_data:/home/node/.n8n \
+      --memory="512m" \
+      --memory-swap="1g" \
+      docker.n8n.io/n8nio/n8n
+    
+    # Instalar Caddy
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
     apt-get update -y
     apt-get install -y caddy
+    
     # Configure Caddy
     cat > /etc/caddy/Caddyfile << 'CADDYFILE'
     n8n.olivinha.site {
